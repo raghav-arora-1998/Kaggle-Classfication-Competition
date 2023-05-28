@@ -5,4 +5,4 @@ Conducted predictive classification modelling and performance evaluation for sev
 
 2) Built, trained, tuned and tested classification models including logistic, KNN, random forests, LDA, QDA and SVM, to best predict the political affiliation of a random U.S citizen in terms of accuracy
 
-3) Achieved an accuracy of 65.08 % using a tuned LDA model on the validation dataset (top 5% in the world)
+3) Achieved an accuracy of 65.08 % using a tuned LDA model on the validation dataset (top 20% in the world)
