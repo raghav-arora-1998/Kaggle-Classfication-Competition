@@ -1,0 +1,984 @@
+---
+title: ""
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    highlight: kate
+---
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+```{r}
+library(here)
+library(tidymodels)
+library(tidyverse)
+library(ggplot2)
+library(ggcorrplot)
+library(vip)
+library(rpart.plot)
+library(discrim)
+library(baguette)
+library(janitor)
+```
+
+```{r}
+cah <- read.csv(here("Data", "CAH-201803-train.csv"))
+test <- read.csv(here("Data", "CAH-201803-test.csv"))
+```
+
+```{r}
+cah %>% 
+   ggplot(aes(x=Q1, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q2, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q4, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q5, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q6, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q7, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q8, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q9, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q10, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q11, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q12, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q13, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q14, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q15, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q16, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q17, y= political_affiliation)) + geom_boxplot()
+
+cah %>% 
+   ggplot(aes(x=Q18, y= political_affiliation)) + geom_boxplot()
+
+```
+
+```{r}
+model.matrix(~0+., data=cah) %>% 
+  cor(use="pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=1) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 8)) +
+  theme(axis.text.y = element_text(size = 8))
+```
+
+```{r}
+cah <- cah %>% 
+  mutate(Q1 = as.factor(Q1), 
+         political_affiliation = as.factor(political_affiliation), 
+         Q4 = as.factor(Q4),
+         Q5 = as.factor(Q5), 
+         Q6 = as.factor(Q6),
+         Q7 = as.factor(Q7),
+         Q8 = as.factor(Q8),
+         Q9 = as.factor(Q9), 
+         Q10 = as.factor(Q10),
+         Q11 = as.factor(Q11),
+         Q12 = as.factor(Q12),
+         Q13 = as.factor(Q13),
+         Q14 = as.factor(Q14),
+         Q15 = as.factor(Q15),
+         Q16 = as.factor(Q16),
+         Q17 = as.factor(Q17),
+         Q18 = as.factor(Q18))
+
+test <- test %>% 
+  mutate(Q1 = as.factor(Q1), 
+         Q4 = as.factor(Q4),
+         Q5 = as.factor(Q5), 
+         Q6 = as.factor(Q6),
+         Q7 = as.factor(Q7),
+         Q8 = as.factor(Q8),
+         Q9 = as.factor(Q9), 
+         Q10 = as.factor(Q10),
+         Q11 = as.factor(Q11),
+         Q12 = as.factor(Q12),
+         Q13 = as.factor(Q13),
+         Q14 = as.factor(Q14),
+         Q15 = as.factor(Q15),
+         Q16 = as.factor(Q16),
+         Q17 = as.factor(Q17),
+         Q18 = as.factor(Q18))
+```
+
+```{r}
+cah_clean <- cah %>% dplyr::select(-id_num)
+
+cah_cv <- vfold_cv(cah_clean, v = 10)
+
+cah_split <- initial_split(cah_clean, prop = 0.7)
+
+cah_train <- training(cah_split)
+
+training_cv <- vfold_cv(cah_train, v = 10)
+
+cah_test <- testing(cah_split)
+
+```
+
+```{r}
+recipe1 <- recipe(political_affiliation ~ ., data = cah_clean, importance = TRUE)
+recipe2 <- recipe(political_affiliation ~ ., data = cah_train)
+```
+
+```{r}
+rf_mod <- rand_forest(mtry = tune(), trees = tune(), min_n = tune()) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+
+rf_wflow <- workflow() %>% 
+  add_model(rf_mod) %>% 
+  add_recipe(recipe1)
+
+
+grid_search <- 
+  tune_grid(
+    rf_wflow,
+    resamples = cah_cv,
+    grid = 25,
+    control = control_grid(save_pred = TRUE))
+
+tuning_metrics <- grid_search %>% collect_metrics()
+
+tuning_metrics %>% 
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+rf_mod <- rand_forest(mtry = 5, trees = 693, min_n = 13) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+rf_wflow <- workflow() %>% 
+  add_model(rf_mod) %>% 
+  add_recipe(recipe1)
+
+rf_fit <- rf_wflow %>% 
+  fit_resamples(cah_cv)
+  
+
+rf_fit %>% collect_metrics()
+```
+
+```{r}
+splits <- initial_split(cah_clean)
+
+last_rf_mod <- rand_forest(mtry = 5, trees = 693, min_n = 37) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("classification")
+
+
+last_rf_wflow <- rf_wflow %>% 
+  update_model(last_rf_mod)
+
+last_rf_fit <- last_rf_wflow %>% 
+  last_fit(splits)
+
+
+last_rf_fit %>% 
+  extract_fit_parsnip() %>% 
+  vip(num_features = 20)
+```
+
+```{r}
+knn <- nearest_neighbor(neighbors = tune()) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn) %>% 
+  add_recipe(recipe2)
+
+
+k_grid <- grid_regular(neighbors(c(2, 75)), levels = 10)
+
+
+knn_k <- knn_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = k_grid)
+
+knn_k %>% show_best('accuracy') 
+```
+
+```{r}
+knn1 <- nearest_neighbor(neighbors = 66) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn1) %>% 
+  add_recipe(recipe2)
+
+knn_fit <- knn_wflow %>% 
+  fit_resamples(training_cv)
+
+
+knn_fit %>% collect_metrics()
+
+knn_fit <- knn_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+lda_mod <- discrim_linear() %>%
+  set_engine("MASS") %>%
+  set_mode("classification")
+
+lda_wflow <- workflow() %>%
+  add_recipe(recipe2) %>%
+  add_model(lda_mod)
+
+lda_cv_fit <- lda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+lda_cv_fit %>% collect_metrics()
+
+lda_fit <- lda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+qda_mod <- discrim_regularized(frac_common_cov = 0) %>% 
+             set_engine('klaR') %>% 
+             set_mode('classification')
+
+qda_wflow <- workflow() %>% 
+  add_model(qda_mod) %>% 
+  add_recipe(recipe2)
+
+qda_cv_fit <- qda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+qda_cv_fit %>% collect_metrics()
+
+qda_fit <- qda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+svm_mod <- svm_poly(cost = tune(), degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_grid <- expand.grid(cost = c(0.25:5, by=0.25 ))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe1)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 1.25, degree = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_degree_grid <- expand.grid(degree = c(1:10, by=0.5))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe2)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_degree_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 1.25, degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe2)
+
+svm_final_fit <- svm_wflow %>% 
+  fit_resamples(training_cv)
+
+svm_final_fit %>% collect_metrics()
+
+svm_fit <- svm_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          min_n(),
+                          levels = 2)
+
+tree_mod <- decision_tree(cost_complexity = tune(),
+                          tree_depth = tune(),
+                          min_n = tune()) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe2) %>% 
+  add_model(tree_mod)
+
+tree_grid_search <-
+  tune_grid(
+    tree_wflow,
+    resamples = training_cv,
+    grid = tree_grid )
+
+tuning_metrics <- tree_grid_search %>% collect_metrics()
+tuning_metrics
+
+tuning_metrics %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+tree_mod <- decision_tree(cost_complexity = 0.0000000001,
+                          tree_depth = 1,
+                          min_n = 2) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe2) %>% 
+  add_model(tree_mod)
+
+tree_final_fit <- tree_wflow %>% 
+  fit_resamples(training_cv)
+
+tree_final_fit %>% collect_metrics()
+
+tree_fit <- tree_wflow %>% 
+  fit(cah_train)
+
+```
+
+```{r}
+recipe3 <- recipe(political_affiliation ~ Q4 + Q5 + Q6 + Q8 + Q10 + Q11 + Q13 + Q16 + Q17, data = cah_train)
+
+recipe4 <- recipe(political_affiliation ~ Q4 + Q5 + Q6 + Q8 + Q10 + Q11 + Q16 + Q17, data = cah_train)
+
+recipe5 <- recipe(political_affiliation ~ Q4 + Q5 + Q6 + Q8 + Q10 + Q11, data = cah_train)
+
+```
+
+```{r}
+knn <- nearest_neighbor(neighbors = tune()) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn) %>% 
+  add_recipe(recipe3)
+
+
+k_grid <- grid_regular(neighbors(c(2, 75)), levels = 10)
+
+
+knn_k <- knn_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = k_grid)
+
+knn_k %>% show_best('accuracy') 
+```
+
+
+```{r}
+knn1 <- nearest_neighbor(neighbors = 10) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn1) %>% 
+  add_recipe(recipe3)
+
+knn_fit <- knn_wflow %>% 
+  fit_resamples(training_cv)
+
+
+knn_fit %>% collect_metrics()
+
+knn_fit <- knn_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+lda_mod <- discrim_linear() %>%
+  set_engine("MASS") %>%
+  set_mode("classification")
+
+lda_wflow <- workflow() %>%
+  add_recipe(recipe3) %>%
+  add_model(lda_mod)
+
+lda_cv_fit <- lda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+lda_cv_fit %>% collect_metrics()
+
+lda_fit <- lda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+qda_mod <- discrim_regularized(frac_common_cov = 0) %>% 
+             set_engine('klaR') %>% 
+             set_mode('classification')
+
+qda_wflow <- workflow() %>% 
+  add_model(qda_mod) %>% 
+  add_recipe(recipe3)
+
+qda_cv_fit <- qda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+qda_cv_fit %>% collect_metrics()
+
+qda_fit <- qda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+svm_mod <- svm_poly(cost = tune(), degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_grid <- expand.grid(cost = c(0.25:5, by=0.25 ))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe3)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 3.25, degree = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_degree_grid <- expand.grid(degree = c(1:10, by=0.5))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe3)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_degree_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 3.25, degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe3)
+
+svm_final_fit <- svm_wflow %>% 
+  fit_resamples(training_cv)
+
+svm_final_fit %>% collect_metrics()
+
+svm_fit <- svm_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          min_n(),
+                          levels = 2)
+
+tree_mod <- decision_tree(cost_complexity = tune(),
+                          tree_depth = tune(),
+                          min_n = tune()) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe3) %>% 
+  add_model(tree_mod)
+
+tree_grid_search <-
+  tune_grid(
+    tree_wflow,
+    resamples = training_cv,
+    grid = tree_grid )
+
+tuning_metrics <- tree_grid_search %>% collect_metrics()
+tuning_metrics
+
+tuning_metrics %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+tree_mod <- decision_tree(cost_complexity = 0.0000000001,
+                          tree_depth = 15,
+                          min_n = 40) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe3) %>% 
+  add_model(tree_mod)
+
+tree_final_fit <- tree_wflow %>% 
+  fit_resamples(training_cv)
+
+tree_final_fit %>% collect_metrics()
+
+tree_fit <- tree_wflow %>% 
+  fit(cah_train)
+
+```
+
+```{r}
+knn <- nearest_neighbor(neighbors = tune()) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn) %>% 
+  add_recipe(recipe4)
+
+
+k_grid <- grid_regular(neighbors(c(2, 75)), levels = 10)
+
+
+knn_k <- knn_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = k_grid)
+
+knn_k %>% show_best('accuracy') 
+```
+
+
+```{r}
+knn1 <- nearest_neighbor(neighbors = 18) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn1) %>% 
+  add_recipe(recipe4)
+
+knn_fit <- knn_wflow %>% 
+  fit_resamples(training_cv)
+
+
+knn_fit %>% collect_metrics()
+
+knn_fit <- knn_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+lda_mod <- discrim_linear() %>%
+  set_engine("MASS") %>%
+  set_mode("classification")
+
+lda_wflow <- workflow() %>%
+  add_recipe(recipe4) %>%
+  add_model(lda_mod)
+
+lda_cv_fit <- lda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+lda_cv_fit %>% collect_metrics()
+
+lda_fit <- lda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+qda_mod <- discrim_regularized(frac_common_cov = 0) %>% 
+             set_engine('klaR') %>% 
+             set_mode('classification')
+
+qda_wflow <- workflow() %>% 
+  add_model(qda_mod) %>% 
+  add_recipe(recipe4)
+
+qda_cv_fit <- qda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+qda_cv_fit %>% collect_metrics()
+
+qda_fit <- qda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+svm_mod <- svm_poly(cost = tune(), degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_grid <- expand.grid(cost = c(0.25:5, by=0.25 ))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe4)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 4.25, degree = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_degree_grid <- expand.grid(degree = c(1:10, by=0.5))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe4)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_degree_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 3.25, degree = 6) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe4)
+
+svm_final_fit <- svm_wflow %>% 
+  fit_resamples(training_cv)
+
+svm_final_fit %>% collect_metrics()
+
+svm_fit <- svm_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          min_n(),
+                          levels = 2)
+
+tree_mod <- decision_tree(cost_complexity = tune(),
+                          tree_depth = tune(),
+                          min_n = tune()) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe4) %>% 
+  add_model(tree_mod)
+
+tree_grid_search <-
+  tune_grid(
+    tree_wflow,
+    resamples = training_cv,
+    grid = tree_grid )
+
+tuning_metrics <- tree_grid_search %>% collect_metrics()
+tuning_metrics
+
+tuning_metrics %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+tree_mod <- decision_tree(cost_complexity = 0.0000000001,
+                          tree_depth = 15,
+                          min_n = 40) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe4) %>% 
+  add_model(tree_mod)
+
+tree_final_fit <- tree_wflow %>% 
+  fit_resamples(training_cv)
+
+tree_final_fit %>% collect_metrics()
+
+tree_fit <- tree_wflow %>% 
+  fit(cah_train)
+
+```
+
+```{r}
+knn <- nearest_neighbor(neighbors = tune()) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn) %>% 
+  add_recipe(recipe5)
+
+
+k_grid <- grid_regular(neighbors(c(2, 75)), levels = 10)
+
+
+knn_k <- knn_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = k_grid)
+
+knn_k %>% show_best('accuracy') 
+```
+
+
+```{r}
+knn1 <- nearest_neighbor(neighbors = 75) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+knn_wflow <- workflow() %>% 
+  add_model(knn1) %>% 
+  add_recipe(recipe5)
+
+knn_fit <- knn_wflow %>% 
+  fit_resamples(training_cv)
+
+
+knn_fit %>% collect_metrics()
+
+knn_fit <- knn_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+lda_mod <- discrim_linear() %>%
+  set_engine("MASS") %>%
+  set_mode("classification")
+
+lda_wflow <- workflow() %>%
+  add_recipe(recipe5) %>%
+  add_model(lda_mod)
+
+lda_cv_fit <- lda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+lda_cv_fit %>% collect_metrics()
+
+lda_fit <- lda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+qda_mod <- discrim_regularized(frac_common_cov = 0) %>% 
+             set_engine('klaR') %>% 
+             set_mode('classification')
+
+qda_wflow <- workflow() %>% 
+  add_model(qda_mod) %>% 
+  add_recipe(recipe5)
+
+qda_cv_fit <- qda_wflow %>%
+  fit_resamples(resamples = training_cv)
+
+qda_cv_fit %>% collect_metrics()
+
+qda_fit <- qda_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+svm_mod <- svm_poly(cost = tune(), degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_grid <- expand.grid(cost = c(0.25:5, by=0.25 ))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe5)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 0.25, degree = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_degree_grid <- expand.grid(degree = c(1:10, by=0.5))
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe5)
+
+svm_results <-  svm_wflow %>% 
+  tune_grid(resamples = training_cv,
+            grid = svm_degree_grid)
+
+svm_results %>% 
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+svm_mod <- svm_poly(cost = 0.25, degree = 1) %>%
+  set_mode("classification") %>%
+  set_engine("kernlab")
+
+svm_wflow <- workflow() %>% 
+  add_model(svm_mod) %>% 
+  add_recipe(recipe5)
+
+svm_final_fit <- svm_wflow %>% 
+  fit_resamples(training_cv)
+
+svm_final_fit %>% collect_metrics()
+
+svm_fit <- svm_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+tree_grid <- grid_regular(cost_complexity(),
+                          tree_depth(),
+                          min_n(),
+                          levels = 2)
+
+tree_mod <- decision_tree(cost_complexity = tune(),
+                          tree_depth = tune(),
+                          min_n = tune()) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe5) %>% 
+  add_model(tree_mod)
+
+tree_grid_search <-
+  tune_grid(
+    tree_wflow,
+    resamples = training_cv,
+    grid = tree_grid )
+
+tuning_metrics <- tree_grid_search %>% collect_metrics()
+tuning_metrics
+
+tuning_metrics %>% 
+  arrange(desc(mean))
+```
+
+```{r}
+tree_mod <- decision_tree(cost_complexity = 0.0000000001,
+                          tree_depth = 1,
+                          min_n = 2) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+tree_wflow <- workflow() %>% 
+  add_recipe(recipe5) %>% 
+  add_model(tree_mod)
+
+tree_final_fit <- tree_wflow %>% 
+  fit_resamples(training_cv)
+
+tree_final_fit %>% collect_metrics()
+
+tree_fit <- tree_wflow %>% 
+  fit(cah_train)
+```
+
+```{r}
+predict <- cah_test %>%
+  mutate(
+    pred_affiliation = predict(lda_fit, cah_test)$.pred_class)
+```
+
+```{r}
+my_metrics <- metric_set(accuracy)
+
+predict %>%
+  my_metrics(truth = political_affiliation, estimate = pred_affiliation) 
+```
+
+```{r}
+final_predictions <- data.frame(
+    id_num  = test$id_num,
+    political_affiliation_predicted = predict(lda_fit, test)$.pred_class)
+
+final_predictions %>% write_csv("final_predictions.csv")
+```
+
